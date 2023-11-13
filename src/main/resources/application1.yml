@@ -28,6 +28,12 @@ spring:
     url: jdbc:mysql://localhost:3306/database?serverTimezone=GMT%2b8
     username: root
     password: 1234
+  rabbitmq: #rabbitmq配置
+    host: 192.168.10.131
+    port: 5672
+    username: itcast
+    password: 123321
+    virtual-host: /
 
 #??????
 sender:

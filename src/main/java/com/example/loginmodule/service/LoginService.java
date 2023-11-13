@@ -1,9 +1,11 @@
 package com.example.loginmodule.service;
 
 import com.example.loginmodule.constant.LoginConst;
+import com.example.loginmodule.constant.RabbitMQConst;
 import com.example.loginmodule.entity.User;
 import com.example.loginmodule.exception.*;
 import com.example.loginmodule.mapper.LoginMapper;
+import com.example.loginmodule.pojo.EmailSendInfo;
 import com.example.loginmodule.pojo.LoginDTO;
 import com.example.loginmodule.pojo.ModifyPasswordDTO;
 import com.example.loginmodule.pojo.RegisterDTO;
@@ -11,6 +13,7 @@ import com.example.loginmodule.utils.EmailSender;
 import com.example.loginmodule.utils.JwtUtil;
 import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -32,13 +35,13 @@ public class LoginService {
     @Autowired
     private Jedis jedis;
     @Autowired
-    private EmailSender emailSender;
-    @Autowired
     private LoginMapper loginMapper;
     @Autowired
     private JwtUtil jwtUtil;
     @Autowired
     private HttpSession session;
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
     public void sendCode(String account) throws MessagingException {
         int code=generateCode();   //还得存储在redis中
         if(checkEmail(account)){
@@ -51,8 +54,9 @@ public class LoginService {
                 throw new CoolTimeNotPassException();
             }
             //TODO 验证码格式要完善
-            log.info("{}发送验证码{}",account,code);
-            emailSender.sendEmail(account,""+code);
+            EmailSendInfo emailSendInfo = new EmailSendInfo(account, code+"");
+            rabbitTemplate.convertAndSend(RabbitMQConst.registerExchange,RabbitMQConst.emailQueueName,emailSendInfo);  //用消息队列发送，实现异步调用
+            log.info("{}发送验证码{},由交换机：{}，队列：{}完成",account,code,RabbitMQConst.registerExchange,RabbitMQConst.emailQueueName);
             jedis.setex(codeIdentifier,LoginConst.VALID_TIME,""+code);    //设置验证码有效期,只有通过前面冷却期的验证,邮件发送成功才能修改
         }else if(checkPhone(account)){
             //TODO 手机发送验证码
